@@ -9,9 +9,9 @@ import subprocess
 import ctypes
 from ctypes import wintypes
 from unlocker_constants import *
+import re
 
 kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
-psapi = ctypes.WinDLL('Psapi', use_last_error=True)
 
 
 class MODULEENTRY32(ctypes.Structure):
@@ -27,6 +27,42 @@ class MODULEENTRY32(ctypes.Structure):
         ("szModule", ctypes.c_char * 256),
         ("szExePath", ctypes.c_char * 260)
     ]
+
+
+def open_process(exe_path: Path, command_line: str = "") -> subprocess.Popen:
+    return subprocess.Popen(
+        [str(exe_path), command_line],
+        shell=False,
+    )
+
+
+def get_process_handle(process: subprocess.Popen, access_rights: int) -> ctypes.wintypes.HANDLE:
+    return ctypes.windll.kernel32.OpenProcess(access_rights, False, process.pid)
+
+
+def read_memory(process_handle: ctypes.wintypes.HANDLE, address: ctypes.c_void_p, size: int) -> bytes:
+    buffer = ctypes.create_string_buffer(size)
+    bytes_read = ctypes.c_size_t()
+
+    ctypes.windll.kernel32.ReadProcessMemory(
+        process_handle, address, buffer, size, ctypes.byref(bytes_read))
+
+    return buffer.raw[:bytes_read.value]
+
+
+def get_memory_data(process, base_address, base_size) -> bytes:
+    access_rights = (
+        PROCESS_VM_READ |
+        PROCESS_VM_WRITE |
+        PROCESS_VM_OPERATION
+    )
+    process_handle = get_process_handle(process, access_rights)
+    print("Process handle:", process_handle)
+
+    address_to_read = ctypes.c_void_p(base_address)
+    data = read_memory(process_handle, address_to_read, base_size)
+    print(type(data), len(data))
+    return data
 
 
 def get_module_info(process, module_name) -> MODULEENTRY32:
@@ -59,36 +95,25 @@ def get_UnityEngine_dll(process) -> MODULEENTRY32:
     return None
 
 
-def pattern_scan(module_handle, signature):
-    pattern = signature.encode('utf-8')
-    pattern_bytes = []
-    mask = []
-    for byte in pattern.split(b' '):
-        if byte == b'?':
-            pattern_bytes.append(0)
-            mask.append(0)
+def pattern_scan(data: bytes, signature) -> int:
+    pattern_parts = []
+    for part in signature.split():
+        if part == "??":
+            pattern_parts.append(None)
         else:
-            pattern_bytes.append(int(byte, 16))
-            mask.append(1)
+            pattern_parts.append(int(part, 16))
 
-    module = ctypes.c_void_p(module_handle)
-    dos_header = ctypes.cast(module, ctypes.POINTER(
-        wintypes.IMAGE_DOS_HEADER)).contents
-    nt_headers = ctypes.cast(ctypes.c_void_p(
-        module.value + dos_header.e_lfanew), ctypes.POINTER(wintypes.IMAGE_NT_HEADERS)).contents
-
-    size_of_image = nt_headers.OptionalHeader.SizeOfImage
-    scan_bytes = (ctypes.c_ubyte * size_of_image).from_address(module_handle)
-
-    pattern_length = len(pattern_bytes)
-    for i in range(size_of_image - pattern_length + 1):
-        found = True
+    pattern_length = len(pattern_parts)
+    data_length = len(data)
+    for i in range(data_length - pattern_length + 1):
+        match = True
         for j in range(pattern_length):
-            if mask[j] and scan_bytes[i + j] != pattern_bytes[j]:
-                found = False
+            if pattern_parts[j] is not None and data[i + j] != pattern_parts[j]:
+                match = False
                 break
-        if found:
-            return ctypes.cast(ctypes.byref(scan_bytes, i), ctypes.c_void_p).value
+        if match:
+            print(f"Found pattern at position {i}-{i + pattern_length}")
+            return i
     return 0
 
 
@@ -139,22 +164,6 @@ def get_pid_by_path(exe_path: Path) -> int:
 def wait_for_process_to_close(running_pid: int, sleep_time: float = 0.2):
     while psutil.pid_exists(running_pid):
         sleep(sleep_time)
-
-
-def create_process(exe_path: Path, command_line: str = ""):
-    try:
-        process_path = str(exe_path)
-        # Create process
-        result = subprocess.Popen(
-            [process_path, command_line],
-            shell=False,
-        )
-        return result
-    except subprocess.CalledProcessError as e:
-        print(e)
-    except Exception as e:
-        print(e)
-    return None
 
 
 def press_any_key_to_continue():

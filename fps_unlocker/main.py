@@ -1,4 +1,5 @@
 import argparse
+import ctypes.wintypes
 from pathlib import Path
 import psutil
 from typing import Tuple, Optional
@@ -87,17 +88,26 @@ def get_valid_path_fps() -> Tuple[Path, int]:
 
 def fps_unlocker(game_path: Path, fps_value: int):
     print("Geshin Impact launch!!! 原神 启动！！")
-    process = create_process(game_path)
+    process: subprocess.Popen = open_process(game_path)
 
     # wait for UnityPlayer.dll to load
     hUnityPlayer = get_UnityEngine_dll(process)
     base_address = hUnityPlayer.modBaseAddr
     base_size = hUnityPlayer.modBaseSize
-    # allocate memory in the game process
-    if hUnityPlayer:
-        pass
+
+    # read the memory of UnityPlayer.dll
+    memory_data = get_memory_data(process, base_address, base_size)
+    try:
+        address = pattern_scan(memory_data, PATTERN_STR)
+    except Exception as e:
+        print(e)
+        process.kill()
+        return
+    print(type(address), address)
 
     process.kill()
+    # wait for the game to close
+    wait_for_process_to_close(process.pid)
 
 
 def main():
