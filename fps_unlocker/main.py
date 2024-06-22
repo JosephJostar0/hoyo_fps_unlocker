@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 import psutil
 from typing import Tuple, Optional
-from time import sleep
 import configparser
 import ctypes
 import sys
@@ -10,6 +9,14 @@ import keyboard
 import subprocess
 import os
 from utils import *
+
+
+# class InvalidConfigError(Exception):
+#     def __init__(self, message):
+#         super().__init__(message)
+
+#     def __str__(self) -> str:
+#         return super().__str__()
 
 
 def write_config(game_path: Path, fps_value: int):
@@ -24,18 +31,23 @@ def write_config(game_path: Path, fps_value: int):
 
 def init_config():
     print("Config file not found, creating one...")
-    print("please launch 'YuanShen.exe' or 'GenshinImpact.exe' to finish the setup")
+    print(
+        f"please launch '{YUANSHEN_EXE}' or '{GENSHIN_EXE}' to finish the setup."
+    )
     print("\nwaiting for the game to launch...")
 
+    # get pid of the game process
     pid = -1
     while pid == -1:
-        pid = max(get_pid("YuanShen.exe"), get_pid("GenshinImpact.exe"))
+        pid = max(get_pid_by_name(YUANSHEN_EXE),
+                  get_pid_by_name(GENSHIN_EXE))
         sleep(0.2)
     game_path = get_executable_path(pid)
     write_config(game_path, FPS_VALUE)
 
 
-def load_config() -> Optional[Tuple[Path, int]]:
+def load_config() -> Tuple[Path, int]:
+    # load config file if it exists, otherwise create one
     if not CONFIG_PATH.exists():
         init_config()
     config = configparser.ConfigParser()
@@ -43,32 +55,67 @@ def load_config() -> Optional[Tuple[Path, int]]:
     try:
         game_path = Path(config.get("fps_unlocker", "game_path"))
         fps_value = config.getint("fps_unlocker", "fps_value")
-        if not (is_valid_path(game_path) and is_valid_fps(fps_value)):
-            raise InvalidConfigError("Invalid config file")
         return game_path, fps_value
-    except (InvalidConfigError, configparser.Error) as e:
+    except configparser.Error as e:
+        # if config file is invalid, delete it
         print(e)
         CONFIG_PATH.unlink()
-        return load_config()
+    return None, None
+
+
+def get_valid_fps(fps_value: int) -> int:
+    # if fps_value is not valid, use default value
+    return fps_value if is_valid_fps(fps_value) else FPS_VALUE
+
+
+def get_valid_file(game_path: Path) -> Path:
+    # if game_path is not valid, delete config and reinitialize
+    if not is_valid_file(game_path):
+        CONFIG_PATH.unlink()
+        game_path = load_config()[0]
+    return game_path
+
+
+def get_valid_path_fps() -> Tuple[Path, int]:
+    # use args if provided, otherwise load from config
+    args = load_valid_args()
+    configs = load_config()
+    game_path = args.path if args.path else get_valid_file(configs[0])
+    fps_value = args.fps if args.fps else get_valid_fps(configs[1])
+    return game_path, fps_value
+
+
+def fps_unlocker(game_path: Path, fps_value: int):
+    print("Geshin Impact launch!!! 原神 启动！！")
+    process = create_process(game_path)
+
+    # wait for UnityPlayer.dll to load
+    hUnityPlayer = get_UnityEngine_dll(process)
+    base_address = hUnityPlayer.modBaseAddr
+    base_size = hUnityPlayer.modBaseSize
+    # allocate memory in the game process
+    if hUnityPlayer:
+        pass
+
+    process.kill()
 
 
 def main():
-    game_path, fps_value = load_config()
-    args = load_args()
-    if args.fps is not None or args.path is not None:
-        fps_value = args.fps if args.fps is not None else fps_value
-        game_path = args.path if args.path is not None else game_path
-        if args.save is not None and args.save is True:
-            write_config(game_path, fps_value)
-            print(f"Config saved to {CONFIG_PATH}")
-    print(f"Unlocking FPS to {fps_value} for {game_path}")
-    # TODO make sure the game is closed, because we need to write to the game's memory in the next step
+    # get game path and fps value
+    game_path, fps_value = get_valid_path_fps()
+
+    # wait for the game to close
+    running_pid = get_pid_by_path(game_path)
+    if running_pid != -1:
+        print("Please close the game before continuing.")
+        wait_for_process_to_close(running_pid)
+
+    # launch the game with the unlocked fps
+    fps_unlocker(game_path, fps_value)
 
 
 if __name__ == '__main__':
-    if os.name != "nt":
-        print("This script is only compatible with Windows.")
-        exit(ERR_FAILURE)
+    must_run_on_windows()
     run_as_admin()
     main()
     press_any_key_to_continue()
