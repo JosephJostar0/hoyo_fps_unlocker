@@ -1,5 +1,4 @@
 import argparse
-from pathlib import Path
 import keyboard
 import psutil
 import sys
@@ -9,7 +8,7 @@ import subprocess
 import ctypes
 from ctypes import wintypes
 from unlocker_constants import *
-import re
+import struct
 
 kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
 

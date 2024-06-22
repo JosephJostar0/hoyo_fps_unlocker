@@ -97,13 +97,18 @@ def fps_unlocker(game_path: Path, fps_value: int):
 
     # read the memory of UnityPlayer.dll
     memory_data = get_memory_data(process, base_address, base_size)
+    address = base_address + pattern_scan(memory_data, PATTERN_STR)
+    print(type(address), address)
+    # TODO write the new fps value to the memory
     try:
-        address = pattern_scan(memory_data, PATTERN_STR)
+        rip = address + 3
+        offset_1 = struct.unpack("<i", struct.pack("<I", rip))[0] + 6
+        rip += offset_1
+        offset_2 = struct.unpack("<i", struct.pack("<I", rip))[0] + 4
+        rip += offset_2
+        print(rip)
     except Exception as e:
         print(e)
-        process.kill()
-        return
-    print(type(address), address)
 
     process.kill()
     # wait for the game to close
