@@ -4,116 +4,10 @@ import psutil
 import sys
 from time import sleep
 import os
-import subprocess
 import ctypes
-from ctypes import wintypes
 from unlocker_constants import *
-import struct
 
 kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
-
-
-class MODULEENTRY32(ctypes.Structure):
-    _fields_ = [
-        ("dwSize", ctypes.wintypes.DWORD),
-        ("th32ModuleID", ctypes.wintypes.DWORD),
-        ("th32ProcessID", ctypes.wintypes.DWORD),
-        ("GlblcntUsage", ctypes.wintypes.DWORD),
-        ("ProccntUsage", ctypes.wintypes.DWORD),
-        ("modBaseAddr", ctypes.c_void_p),  # 使用 c_void_p 处理指针类型
-        ("modBaseSize", ctypes.wintypes.DWORD),
-        ("hModule", ctypes.wintypes.HMODULE),
-        ("szModule", ctypes.c_char * 256),
-        ("szExePath", ctypes.c_char * 260)
-    ]
-
-
-def open_process(exe_path: Path, command_line: str = "") -> subprocess.Popen:
-    return subprocess.Popen(
-        [str(exe_path), command_line],
-        shell=False,
-    )
-
-
-def get_process_handle(process: subprocess.Popen, access_rights: int) -> ctypes.wintypes.HANDLE:
-    return ctypes.windll.kernel32.OpenProcess(access_rights, False, process.pid)
-
-
-def read_memory(process_handle: ctypes.wintypes.HANDLE, address: ctypes.c_void_p, size: int) -> bytes:
-    buffer = ctypes.create_string_buffer(size)
-    bytes_read = ctypes.c_size_t()
-
-    ctypes.windll.kernel32.ReadProcessMemory(
-        process_handle, address, buffer, size, ctypes.byref(bytes_read))
-
-    return buffer.raw[:bytes_read.value]
-
-
-def get_memory_data(process, base_address, base_size) -> bytes:
-    access_rights = (
-        PROCESS_VM_READ |
-        PROCESS_VM_WRITE |
-        PROCESS_VM_OPERATION
-    )
-    process_handle = get_process_handle(process, access_rights)
-    print("Process handle:", process_handle)
-
-    address_to_read = ctypes.c_void_p(base_address)
-    data = read_memory(process_handle, address_to_read, base_size)
-    print(type(data), len(data))
-    return data
-
-
-def get_module_info(process, module_name) -> MODULEENTRY32:
-    h_module = MODULEENTRY32()
-    snapshot = ctypes.windll.kernel32.CreateToolhelp32Snapshot(
-        0x00000008, process.pid)
-    h_module.dwSize = ctypes.sizeof(MODULEENTRY32)
-    result = ctypes.windll.kernel32.Module32First(
-        snapshot, ctypes.byref(h_module))
-    while result:
-        if h_module.szModule.decode().lower() == module_name.lower():
-            ctypes.windll.kernel32.CloseHandle(snapshot)
-            return h_module
-        result = ctypes.windll.kernel32.Module32Next(
-            snapshot, ctypes.byref(h_module))
-    ctypes.windll.kernel32.CloseHandle(snapshot)
-    return None
-
-
-def get_UnityEngine_dll(process) -> MODULEENTRY32:
-    hUnityPlayer = None
-    try:
-        while hUnityPlayer is None:
-            hUnityPlayer = get_module_info(process, UNITY_PLAYER_DLL)
-            sleep(0.2)
-        return hUnityPlayer
-    except Exception as e:
-        print(e)
-        process.kill()
-    return None
-
-
-def pattern_scan(data: bytes, signature) -> int:
-    pattern_parts = []
-    for part in signature.split():
-        if part == "??":
-            pattern_parts.append(None)
-        else:
-            pattern_parts.append(int(part, 16))
-
-    pattern_length = len(pattern_parts)
-    data_length = len(data)
-    for i in range(data_length - pattern_length + 1):
-        match = True
-        for j in range(pattern_length):
-            if pattern_parts[j] is not None and data[i + j] != pattern_parts[j]:
-                match = False
-                break
-        if match:
-            print(f"Found pattern at position {i}-{i + pattern_length}")
-            return i
-    return 0
 
 
 def run_as_admin():
@@ -123,6 +17,12 @@ def run_as_admin():
         ctypes.windll.shell32.ShellExecuteW(
             None, "runas", sys.executable, " ".join(sys.argv), None, 1)
         exit(0)
+
+
+def run_exe_as_admin(exe_path: str, params: str = ""):
+    # 调用ShellExecuteW函数，以管理员权限运行.exe程序
+    result = ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", exe_path, params, None, 1)
 
 
 def must_run_on_windows():
@@ -160,7 +60,7 @@ def get_pid_by_path(exe_path: Path) -> int:
     return -1
 
 
-def wait_for_process_to_close(running_pid: int, sleep_time: float = 0.2):
+def wait_for_process_to_close(running_pid: int, sleep_time: float = 0.5):
     while psutil.pid_exists(running_pid):
         sleep(sleep_time)
 

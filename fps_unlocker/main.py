@@ -1,23 +1,7 @@
-import argparse
-import ctypes.wintypes
 from pathlib import Path
-import psutil
-from typing import Tuple, Optional
+from typing import Tuple
 import configparser
-import ctypes
-import sys
-import keyboard
-import subprocess
-import os
 from utils import *
-
-
-# class InvalidConfigError(Exception):
-#     def __init__(self, message):
-#         super().__init__(message)
-
-#     def __str__(self) -> str:
-#         return super().__str__()
 
 
 def write_config(game_path: Path, fps_value: int):
@@ -69,7 +53,7 @@ def get_valid_fps(fps_value: int) -> int:
     return fps_value if is_valid_fps(fps_value) else FPS_VALUE
 
 
-def get_valid_file(game_path: Path) -> Path:
+def get_valid_path(game_path: Path) -> Path:
     # if game_path is not valid, delete config and reinitialize
     if not is_valid_file(game_path):
         CONFIG_PATH.unlink()
@@ -81,38 +65,20 @@ def get_valid_path_fps() -> Tuple[Path, int]:
     # use args if provided, otherwise load from config
     args = load_valid_args()
     configs = load_config()
-    game_path = args.path if args.path else get_valid_file(configs[0])
+    game_path = args.path if args.path else get_valid_path(configs[0])
     fps_value = args.fps if args.fps else get_valid_fps(configs[1])
     return game_path, fps_value
 
 
 def fps_unlocker(game_path: Path, fps_value: int):
+    args = [
+        '--path',
+        f'"{str(game_path)}"'.replace('/', '\\'),
+        '--fps', str(fps_value)
+    ]
+    cmd = " ".join(args)
     print("Geshin Impact launch!!! 原神 启动！！")
-    process: subprocess.Popen = open_process(game_path)
-
-    # wait for UnityPlayer.dll to load
-    hUnityPlayer = get_UnityEngine_dll(process)
-    base_address = hUnityPlayer.modBaseAddr
-    base_size = hUnityPlayer.modBaseSize
-
-    # read the memory of UnityPlayer.dll
-    memory_data = get_memory_data(process, base_address, base_size)
-    address = base_address + pattern_scan(memory_data, PATTERN_STR)
-    print(type(address), address)
-    # TODO write the new fps value to the memory
-    try:
-        rip = address + 3
-        offset_1 = struct.unpack("<i", struct.pack("<I", rip))[0] + 6
-        rip += offset_1
-        offset_2 = struct.unpack("<i", struct.pack("<I", rip))[0] + 4
-        rip += offset_2
-        print(rip)
-    except Exception as e:
-        print(e)
-
-    process.kill()
-    # wait for the game to close
-    wait_for_process_to_close(process.pid)
+    run_exe_as_admin(UNLOCKER_EXE, cmd)
 
 
 def main():
@@ -133,4 +99,4 @@ if __name__ == '__main__':
     must_run_on_windows()
     run_as_admin()
     main()
-    press_any_key_to_continue()
+    # press_any_key_to_continue()

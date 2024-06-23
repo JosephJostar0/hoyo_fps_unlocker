@@ -1,5 +1,8 @@
+test/
 test.*
 config.ini
+*.genshin
+*.exe
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
