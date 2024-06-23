@@ -214,33 +214,38 @@ static DWORD GetPID(std::wstring ProcessName) {
 }
 
 // Hotpatch
-static DWORD64 inject_patch(LPVOID unity_module, DWORD64 unity_baseaddr, DWORD64 _ptr_fps, HANDLE Tar_handle) {
-    BYTE search_sec[] = ".text";                                                 // max 8 byte
-    uintptr_t WinPEfileVA = *(uintptr_t *)(&unity_module) + 0x3c;                // dos_header
-    uintptr_t PEfptr = *(uintptr_t *)(&unity_module) + *(uint32_t *)WinPEfileVA; // get_winPE_VA
-    _IMAGE_NT_HEADERS64 _FilePE_Nt_header = *(_IMAGE_NT_HEADERS64 *)PEfptr;
+static DWORD64 inject_patch(LPVOID unity_module, DWORD64 unity_baseaddr, DWORD64 _ptr_fps,HANDLE Tar_handle)
+{
+    BYTE search_sec[] = ".text";//max 8 byte
+    uintptr_t WinPEfileVA = *(uintptr_t*)(&unity_module) + 0x3c; //dos_header
+    uintptr_t PEfptr = *(uintptr_t*)(&unity_module) + *(uint32_t*)WinPEfileVA; //get_winPE_VA
+    _IMAGE_NT_HEADERS64 _FilePE_Nt_header = *(_IMAGE_NT_HEADERS64*)PEfptr;
     _IMAGE_SECTION_HEADER _sec_temp{};
     DWORD64 Module_TarSec_RVA;
     DWORD64 Module_TarSecEnd_RVA;
     DWORD Module_TarSec_Size;
-    if (_FilePE_Nt_header.Signature == 0x00004550) {
-        DWORD sec_num = _FilePE_Nt_header.FileHeader.NumberOfSections; // 获得指定节段参数
+    if (_FilePE_Nt_header.Signature == 0x00004550)
+    {
+        DWORD sec_num = _FilePE_Nt_header.FileHeader.NumberOfSections;//获得指定节段参数
         DWORD num = sec_num;
-        while (num) {
-            _sec_temp =
-                *(_IMAGE_SECTION_HEADER *)(PEfptr + 264 + (40 * (static_cast<unsigned long long>(sec_num) - num)));
+        while (num)
+        {
+            _sec_temp = *(_IMAGE_SECTION_HEADER*)(PEfptr + 264 + (40 * (static_cast<unsigned long long>(sec_num) - num)));
 
-            // printf_s("sec_%d_is:  %s\n", sec_num - num, _sec_temp.Name);
+            //printf_s("sec_%d_is:  %s\n", sec_num - num, _sec_temp.Name);
             int i = 8;
             int len = sizeof(search_sec) - 1;
             int cmp = 0;
-            while ((i != 0) && _sec_temp.Name[8 - i] && search_sec[8 - i]) {
-                if (_sec_temp.Name[8 - i] == search_sec[8 - i]) {
+            while ((i != 0) && _sec_temp.Name[8 - i] && search_sec[8 - i])
+            {
+                if (_sec_temp.Name[8 - i] == search_sec[8 - i])
+                {
                     cmp++;
                 }
                 i--;
             }
-            if (cmp == len) {
+            if (cmp == len)
+            {
                 Module_TarSec_RVA = _sec_temp.VirtualAddress + (DWORD64)unity_module;
                 Module_TarSec_Size = _sec_temp.Misc.VirtualSize;
                 Module_TarSecEnd_RVA = Module_TarSec_RVA + Module_TarSec_Size;
@@ -248,113 +253,116 @@ static DWORD64 inject_patch(LPVOID unity_module, DWORD64 unity_baseaddr, DWORD64
             }
             num--;
         }
-        //printf_s("Get Target Section Fail !\n");
+        printf_s("Get Target Section Fail !\n");
         return 0;
     }
     return 0;
 
 __Get_target_sec:
     DWORD64 address = 0;
-    if (isGenshin) {
+    if (isGenshin)
+    {
         DWORD64 Hook_addr = 0;
         DWORD64 Hook_addr_tar = 0;
-        while (address = PatternScan_Region(Module_TarSec_RVA, Module_TarSec_Size,
-                                            "CC 89 0D ?? ?? ?? ?? C3 CC")) // 搜索正确patch点位
+        while(address = PatternScan_Region(Module_TarSec_RVA, Module_TarSec_Size, "CC 89 0D ?? ?? ?? ?? C3 CC"))//搜索正确patch点位
         {
             uintptr_t rip = address;
             rip += 3;
-            rip += *(int32_t *)(rip) + 4;
-            if ((rip - (uintptr_t)unity_module + (uintptr_t)unity_baseaddr) == _ptr_fps) {
+            rip += *(int32_t*)(rip)+4;
+            if ((rip - (uintptr_t)unity_module + (uintptr_t)unity_baseaddr) == _ptr_fps)
+            {
                 Hook_addr = address + 1;
                 Hook_addr_tar = Hook_addr - (uintptr_t)unity_module + (uintptr_t)unity_baseaddr;
                 goto __Get_Patch_addr;
-            } else {
-                *(uint64_t *)(address + 1) = 0xCCCCCCCCCCCCCCCC;
+            }
+            else
+            {
+                *(uint64_t*)(address + 1) = 0xCCCCCCCCCCCCCCCC;
             }
         }
-        //printf_s("\nPatch pattern outdate...\n");
+        printf_s("\nPatch pattern outdate...\n");
         return 0;
 
     __Get_Patch_addr:
         uint32_t Qword_num = 0;
         uint64_t Patch_addr = 0;
         uint64_t Patch_addr_Tar = 0;
-        while (*(uint64_t *)(Module_TarSecEnd_RVA + (Qword_num * 8)) == 0) // 获取区段尾部空余空间
+        while (*(uint64_t*)(Module_TarSecEnd_RVA + (Qword_num * 8)) == 0)//获取区段尾部空余空间
         {
             Qword_num++;
-            if (Qword_num == 9) {
+            if (Qword_num == 9)
+            {
                 break;
             }
         }
-        if (Qword_num >= 9) {
-            // 先在buffer里Patch好，再写到TarProcess
-            Patch_addr = ((Module_TarSecEnd_RVA + 32) >> 4) << 4; // 对齐
-            *(uint64_t *)(Patch_addr - 8) = 0xCCCCCCCCCCCCCCCC;
-            *(uint64_t *)(Patch_addr - 16) = 0xCCCCCCCCCCCCCCCC;
+        if (Qword_num >= 9)
+        {
+            //先在buffer里Patch好，再写到TarProcess
+            Patch_addr = ((Module_TarSecEnd_RVA + 32)>>4)<<4;//对齐
+            *(uint64_t*)(Patch_addr - 8) = 0xCCCCCCCCCCCCCCCC;
+            *(uint64_t*)(Patch_addr - 16) = 0xCCCCCCCCCCCCCCCC;
             Patch_addr_Tar = (Patch_addr - 16) - (uintptr_t)unity_module + (uintptr_t)unity_baseaddr;
-            { // copy shellcode
-                uint64_t *temp_ptr = (uint64_t *)Patch_addr;
-                uint64_t *temp_ptr_sc = (uint64_t *)&_shellcode_genshin;
+            { //copy shellcode
+                uint64_t * temp_ptr = (uint64_t*)Patch_addr;
+                uint64_t * temp_ptr_sc = (uint64_t*)&_shellcode_genshin;
                 int32_t pa_offset = 0;
                 int i = 0;
-                while (i != 6) {
-                    *(uint64_t *)(temp_ptr + i) = *(uint64_t *)(temp_ptr_sc + i);
+                while(i!=6)
+                {
+                    *(uint64_t*)(temp_ptr + i) = *(uint64_t*)(temp_ptr_sc + i);
                     i++;
                 }
-                *(uint32_t *)(Patch_addr + 0x14) = FPS_TARGET;
-                uint64_t RVA_fps = (_ptr_fps - (uintptr_t)unity_baseaddr) + (uintptr_t)unity_module;
-                *(uint32_t *)(Patch_addr + 0x24) = (uint32_t)(RVA_fps - (uint32_t)(Patch_addr + 0x28));
+                *(uint32_t*)(Patch_addr + 0x14) = FPS_TARGET;
+                uint64_t RVA_fps = (_ptr_fps - (uintptr_t)unity_baseaddr)+ (uintptr_t)unity_module;
+                *(uint32_t*)(Patch_addr + 0x24) = (uint32_t)(RVA_fps - (uint32_t)(Patch_addr + 0x28));
             }
-            int32_t _jmp_im_num = Patch_addr - (Hook_addr + 5); // hook原来的set
-            *(uint64_t *)Hook_addr = 0xCCCCCC00000000E9;
-            *(uint32_t *)(Hook_addr + 1) = _jmp_im_num;
+            int32_t _jmp_im_num = Patch_addr - (Hook_addr + 5);//hook原来的set
+            *(uint64_t*)Hook_addr = 0xCCCCCC00000000E9;
+            *(uint32_t*)(Hook_addr + 1) = _jmp_im_num;
             //----------------------------------------------buffer_ok----------------------------------------------//
-            if (WriteProcessMemory(Tar_handle, (LPVOID)Patch_addr_Tar, (LPVOID)(Patch_addr - 16), 0x40, 0) == 0) {
+            if (WriteProcessMemory(Tar_handle, (LPVOID)Patch_addr_Tar, (LPVOID)(Patch_addr - 16), 0x40, 0) == 0)
+            {
                 DWORD ERR_code = GetLastError();
-                //printf_s("\nWrite Target_Patch Fail! ( 0x%X ) - %s\n", ERR_code,
-                //         GetLastErrorAsString(ERR_code).c_str());
+                printf_s("\nWrite Target_Patch Fail! ( 0x%X ) - %s\n", ERR_code, GetLastErrorAsString(ERR_code).c_str());
                 return 0;
             }
-            if (WriteProcessMemory(Tar_handle, (LPVOID)Hook_addr_tar, (LPVOID)Hook_addr, 0x8, 0) == 0) {
+            if (WriteProcessMemory(Tar_handle, (LPVOID)Hook_addr_tar, (LPVOID)Hook_addr, 0x8, 0) == 0)
+            {
                 DWORD ERR_code = GetLastError();
-                //printf_s("\nWrite Target_Hook Fail! ( 0x%X ) - %s\n", ERR_code, GetLastErrorAsString(ERR_code).c_str());
+                printf_s("\nWrite Target_Hook Fail! ( 0x%X ) - %s\n", ERR_code, GetLastErrorAsString(ERR_code).c_str());
                 return 0;
             }
             return (Patch_addr_Tar + 0x24);
         }
-        //printf_s("\nPatch Failed cause no enough space in module...\n");
+        printf_s("\nPatch Failed cause no enough space in module...\n");
         return 0;
-    } else {
-        while (address = PatternScan_Region(Module_TarSec_RVA, Module_TarSec_Size,
-                                            "CC 89 0D ?? ?? ?? ?? E9 ?? ?? ?? ?? CC CC CC CC CC")) // 搜索正确patch点位
+    }
+    else
+    {
+        while (address = PatternScan_Region(Module_TarSec_RVA, Module_TarSec_Size, "CC 89 0D ?? ?? ?? ?? E9 ?? ?? ?? ?? CC CC CC CC CC"))//搜索正确patch点位
         {
             uintptr_t rip = address;
             rip += 3;
-            int32_t eax_fps_of = *(int32_t *)(rip);
-            if ((eax_fps_of >> 31) == 1) {
-                eax_fps_of += 5;
-            } else {
-                eax_fps_of -= 5;
-            }
-            int32_t ebx_jmp_im = *(int32_t *)(rip + 5);
-            if ((ebx_jmp_im >> 31) == 1) {
-                ebx_jmp_im += 5;
-            } else {
-                ebx_jmp_im -= 5;
-            }
-            rip += *(int32_t *)(rip) + 4;
-            if ((rip - (uintptr_t)unity_module + (uintptr_t)unity_baseaddr) == _ptr_fps) {
+            int32_t eax_fps_of = *(int32_t*)(rip);
+            if ((eax_fps_of >> 31) == 1)
+            {eax_fps_of += 5;}else { eax_fps_of -= 5; }
+            int32_t ebx_jmp_im = *(int32_t*)(rip + 5);
+            if ((ebx_jmp_im >> 31) == 1)
+            { ebx_jmp_im += 5;}else { ebx_jmp_im -= 5; }
+            rip += *(int32_t*)(rip)+4;
+            if ((rip - (uintptr_t)unity_module + (uintptr_t)unity_baseaddr) == _ptr_fps)
+            {
                 DWORD64 Patch0_addr = address + 1;
                 DWORD64 Patch0_addr_hook = Patch0_addr - (uintptr_t)unity_module + (uintptr_t)unity_baseaddr;
-                *(int64_t *)Patch0_addr = 0x000D8900000078B9;
-                *(int64_t *)(Patch0_addr + 8) = 0x00000000E9000000;
-                *(int32_t *)(Patch0_addr + 1) = FPS_TARGET;
-                *(int32_t *)(Patch0_addr + 7) = eax_fps_of;
-                *(int32_t *)(Patch0_addr + 12) = ebx_jmp_im;
-                if (WriteProcessMemory(Tar_handle, (LPVOID)Patch0_addr_hook, (LPVOID)Patch0_addr, 0x10, 0) == 0) {
+                *(int64_t*)Patch0_addr = 0x000D8900000078B9;
+                *(int64_t*)(Patch0_addr + 8) = 0x00000000E9000000;
+                *(int32_t*)(Patch0_addr + 1) = FPS_TARGET;
+                *(int32_t*)(Patch0_addr + 7) = eax_fps_of;
+                *(int32_t*)(Patch0_addr + 12) = ebx_jmp_im;
+                if (WriteProcessMemory(Tar_handle, (LPVOID)Patch0_addr_hook, (LPVOID)Patch0_addr, 0x10, 0) == 0)
+                {
                     DWORD ERR_code = GetLastError();
-                    //printf_s("\nWrite Target_Patch Fail! ( 0x%X ) - %s\n", ERR_code,
-                    //         GetLastErrorAsString(ERR_code).c_str());
+                    printf_s("\nWrite Target_Patch Fail! ( 0x%X ) - %s\n", ERR_code, GetLastErrorAsString(ERR_code).c_str());
                     return 0;
                 }
                 return ((address - (uintptr_t)unity_module + (uintptr_t)unity_baseaddr) + 2);
@@ -362,7 +370,7 @@ __Get_target_sec:
             Module_TarSec_Size = address - Module_TarSec_RVA;
             Module_TarSec_RVA = address + 12;
         }
-        //printf_s("\nPatch pattern outdate...\n");
+        printf_s("\nPatch pattern outdate...\n");
         return 0;
     }
 }
