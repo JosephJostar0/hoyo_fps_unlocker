@@ -168,21 +168,20 @@ static bool GetModule(DWORD pid, std::wstring ModuleName, PMODULEENTRY32 pEntry)
                 break;
             }
 
-            wchar_t temp[260];
-            MultiByteToWideChar(CP_ACP, 0, mod32.szModule, -1, temp, 260);
-            if (std::wstring(temp) == ModuleName) {
-                *pEntry = mod32;
-                CloseHandle(snap);
-                return 1;
-            } //This is for g++ compiler
+            //wchar_t temp[260];
+            //MultiByteToWideChar(CP_ACP, 0, mod32.szModule, -1, temp, 260);
+            //if (std::wstring(temp) == ModuleName) {
+            //    *pEntry = mod32;
+            //    CloseHandle(snap);
+            //    return 1;
+            //} //This is for g++ compiler
 
-	/*
+
             if (mod32.szModule == ModuleName) {
                 *pEntry = mod32;
                 CloseHandle(snap);
                 return 1;
             }
-	*/
 
         } while (Module32Next(snap, &mod32));
     }
@@ -198,19 +197,17 @@ static DWORD GetPID(std::wstring ProcessName) {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     for (Process32First(snap, &pe32); Process32Next(snap, &pe32);) {
 
-        wchar_t wExeFile[260];
-        MultiByteToWideChar(CP_ACP, 0, pe32.szExeFile, -1, wExeFile, 260);
-        if (std::wstring(wExeFile) == ProcessName) {
-            pid = pe32.th32ProcessID;
-            break;
-        } //This is for g++ compiler
-	
-	/*
+        //wchar_t wExeFile[260];
+        //MultiByteToWideChar(CP_ACP, 0, pe32.szExeFile, -1, wExeFile, 260);
+        //if (std::wstring(wExeFile) == ProcessName) {
+        //    pid = pe32.th32ProcessID;
+        //    break;
+        //} //This is for g++ compiler
+
         if (std::wstring(pe32.szExeFile) == ProcessName) {
             pid = pe32.th32ProcessID;
             break;
         }
-	*/
     }
     CloseHandle(snap);
     return pid;
@@ -382,8 +379,10 @@ __choose_ok:
     //std::cout<< "GamePath: " << ProcessPath.c_str() << std::endl;
     //std::cout << "TargetFPS: " << TargetFPS << std::endl;
 
-    if (ProcessPath.length() < 8)
+    if (ProcessPath.length() < 8) {
+        std::cout<<"Game Path is too short!"<<std::endl;
         return 0;
+    }
 
     //cout << "GamePath: " << ProcessPath.c_str() << endl;
     ProcessDir = ProcessPath.substr(0, ProcessPath.find_last_of("\\"));
@@ -416,7 +415,7 @@ _wait_process_close:
     if (!CreateProcessA(ProcessPath.c_str(), (LPSTR)CommandLine.c_str(), nullptr, nullptr, FALSE, 0, nullptr,
                         ProcessDir.c_str(), &si, &pi)) {
         DWORD ERR_code = GetLastError();
-        //printf_s("\nCreateprocess Fail! ( 0x%X ) - %s\n", ERR_code, GetLastErrorAsString(ERR_code).c_str());
+        printf_s("\nCreateprocess Fail! ( 0x%X ) - %s\n", ERR_code, GetLastErrorAsString(ERR_code).c_str());
         system("pause");
         return (int)-1;
     }
@@ -437,7 +436,7 @@ _wait_process_close:
                 goto __get_unity_ok;
             }
             if (times == 0) {
-                //cout << "Get unity module time out!" << endl;
+                std::cout << "Get unity module time out!" << std::endl;
                 CloseHandle(pi.hProcess);
                 system("pause");
                 return (int)-1;
@@ -453,13 +452,13 @@ __get_unity_ok:
     LPVOID up = VirtualAlloc(nullptr, hUnityPlayer.modBaseSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!up) {
         DWORD ERR_code = GetLastError();
-        //printf_s("\nVirtualAlloc failed! ( 0x%X ) - %s", ERR_code, GetLastErrorAsString(ERR_code).c_str());
+        printf_s("\nVirtualAlloc failed! ( 0x%X ) - %s", ERR_code, GetLastErrorAsString(ERR_code).c_str());
         system("pause");
         CloseHandle(pi.hProcess);
         return (int)-1;
     }
     if (hUnityPlayer.modBaseAddr == 0) {
-        //printf_s("\nUnityPlayerBaseAddrptr is null ! \n");
+        printf_s("\nUnityPlayerBaseAddrptr is null ! \n");
         CloseHandle(pi.hProcess);
         system("pause");
         return (int)-1;
@@ -467,7 +466,7 @@ __get_unity_ok:
     // 把整个模块读出来
     if (!ReadProcessMemory(pi.hProcess, hUnityPlayer.modBaseAddr, up, hUnityPlayer.modBaseSize, nullptr)) {
         DWORD ERR_code = GetLastError();
-        //printf_s("\nRead UnityPlayer module Fail! ( 0x%X ) - %s\n", ERR_code, GetLastErrorAsString(ERR_code).c_str());
+        printf_s("\nRead UnityPlayer module Fail! ( 0x%X ) - %s\n", ERR_code, GetLastErrorAsString(ERR_code).c_str());
         CloseHandle(pi.hProcess);
         VirtualFree(up, 0, MEM_RELEASE);
         system("pause");
@@ -605,10 +604,25 @@ __exit_main:
     //system("pause");
     return 1;
 }
-/*
+
 int main(int argc, char **argv) {
-    genshinLaunch("E:\\MiHoYo\\GenshinImpact\\YuanShen.exe", 144);
-    //genshinLaunch("D:\\Genshin Impact\\Genshin Impact Game\\YuanShen.exe", 144);
+    std::string gamePath = "";
+    int gameFps = 120;
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--path") {
+            if (i + 1 < argc) {
+                gamePath = argv[i + 1];
+			}
+		} else if (arg == "--fps") {
+			if (i + 1 < argc) {
+				gameFps = std::stoi(argv[i + 1]);
+			}
+        }
+    }
+    std::cout<<"Game Path: "<<gamePath<<std::endl;
+    std::cout<<"Game FPS: "<<gameFps<<std::endl;
+    
+    genshinLaunch(gamePath, gameFps);
     return 0;
 }
-*/
