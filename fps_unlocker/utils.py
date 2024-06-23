@@ -14,15 +14,16 @@ def run_as_admin():
     # Check if the script is running as admin
     if not ctypes.windll.shell32.IsUserAnAdmin():
         # If not, relaunch the script as admin
+        args = sys.argv[1:]
         ctypes.windll.shell32.ShellExecuteW(
-            None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+            None, "runas", sys.executable, " ".join(args), None, 1)
         exit(0)
 
 
-def run_exe_as_admin(exe_path: str, params: str = ""):
+def run_exe_as_admin(exe_path: str, params: str = "", is_debug: int = 0):
     # 调用ShellExecuteW函数，以管理员权限运行.exe程序
     result = ctypes.windll.shell32.ShellExecuteW(
-        None, "runas", exe_path, params, None, 1)
+        None, "runas", exe_path, params, None, is_debug)
 
 
 def must_run_on_windows():
@@ -93,6 +94,8 @@ def load_valid_args():
                         help="Path to the game executable")
     parser.add_argument('--save', type=bool, default=False,
                         help="Save the current configuration")
+    parser.add_argument('--debug', type=int, default=0,
+                        help="0 = no debug, 1 = debug")
     try:
         args = parser.parse_args()
         # if fps is provided, check if it is valid

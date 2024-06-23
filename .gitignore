@@ -3,6 +3,7 @@ test.*
 config.ini
 *.genshin
 *.exe
+*.ico
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

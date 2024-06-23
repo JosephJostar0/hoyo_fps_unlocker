@@ -1,0 +1,8 @@
+altgraph==0.17.4
+keyboard==0.13.5
+packaging==24.1
+pefile==2023.2.7
+psutil==6.0.0
+pyinstaller==6.8.0
+pyinstaller-hooks-contrib==2024.7
+pywin32-ctypes==0.2.2

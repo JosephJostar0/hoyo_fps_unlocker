@@ -61,16 +61,19 @@ def get_valid_path(game_path: Path) -> Path:
     return game_path
 
 
-def get_valid_path_fps() -> Tuple[Path, int]:
+def get_valid_arg_values() -> Tuple[Path, int, int]:
     # use args if provided, otherwise load from config
     args = load_valid_args()
     configs = load_config()
     game_path = args.path if args.path else get_valid_path(configs[0])
     fps_value = args.fps if args.fps else get_valid_fps(configs[1])
-    return game_path, fps_value
+    is_debug = 0 if args.debug == 0 else 1
+    if args.save:
+        write_config(game_path, fps_value)
+    return game_path, fps_value, is_debug
 
 
-def fps_unlocker(game_path: Path, fps_value: int):
+def fps_unlocker(game_path: Path, fps_value: int, is_debug: int = 0):
     args = [
         '--path',
         f'"{str(game_path)}"'.replace('/', '\\'),
@@ -78,12 +81,12 @@ def fps_unlocker(game_path: Path, fps_value: int):
     ]
     cmd = " ".join(args)
     print("Geshin Impact launch!!! 原神 启动！！")
-    run_exe_as_admin(UNLOCKER_EXE, cmd)
+    run_exe_as_admin(UNLOCKER_EXE, cmd, is_debug)
 
 
 def main():
     # get game path and fps value
-    game_path, fps_value = get_valid_path_fps()
+    game_path, fps_value, is_debug = get_valid_arg_values()
 
     # wait for the game to close
     running_pid = get_pid_by_path(game_path)
@@ -92,7 +95,7 @@ def main():
         wait_for_process_to_close(running_pid)
 
     # launch the game with the unlocked fps
-    fps_unlocker(game_path, fps_value)
+    fps_unlocker(game_path, fps_value, is_debug)
 
 
 if __name__ == '__main__':
