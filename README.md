@@ -57,7 +57,7 @@ A GenshinImpact FPS unlock tool
 
 ## Notes
 
-- HoYoverse (miHoYo, 米哈游) acknowledges this tool, and I've used it for over six months without being banned.
+- HoYoverse (米哈游, miHoYo) acknowledges this tool, and I've used it for over six months without being banned.
 - Use of other third-party plugins is at your own risk.
 - Please refrain from reselling such a simple tool.
 

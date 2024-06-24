@@ -5,6 +5,7 @@ config.ini
 *.exe
 *.ico
 *.7z
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
