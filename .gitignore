@@ -4,6 +4,7 @@ config.ini
 *.genshin
 *.exe
 *.ico
+*.7z
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
