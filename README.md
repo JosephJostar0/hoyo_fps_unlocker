@@ -48,8 +48,9 @@ A GenshinImpact FPS unlock tool
 ## Compile the Executable Files by Yourself
 
 - For `core.exe`:  
-    - Compile using Visual Studio with the source code provided in [unlocker.cpp](./fps_unlocker/unlocker.cpp).
+    - Compile using Visual Studio with the provided source code in [unlocker.cpp](./fps_unlocker/unlocker.cpp).
     - If using a different compiler like g++ or clang++, ensure you adjust the source code to meet the compiler's requirements.
+    - **Special thanks to @[winTEuser](https://github.com/winTEuser)**
 
 - For `unlocker_ui.exe`:  
     - Make sure to install the necessary requirements before compiling.
