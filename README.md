@@ -7,7 +7,8 @@ A GenshinImpact FPS unlock tool
 
 - This tool remove the fps limit for the latest version (V4.7) of GenshinImpact.
 - Supports both Chinese and International editions.
-- This tool will be updated and maintained as long as I continue playing GenshinImpact.
+- This tool is made with reference to the code of its developer.
+- This tool was created to meet my personal needs, and it will be updated and maintained as long as I continue playing GenshinImpact.
 - If you require addtional functionality, you can use other similar tools mentioned in [Reference](#reference).
 
 ## Latest Update (6/23/2024)
